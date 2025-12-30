@@ -20,35 +20,58 @@ jobs:
           sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
       
+      - name: Setup cookies (if available)
+        id: cookies
+        run: |
+          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+            echo "${{ secrets.YOUTUBE_COOKIES }}" > /tmp/cookies.txt
+            echo "cookies_file=/tmp/cookies.txt" >> $GITHUB_OUTPUT
+            echo "Cookies file created"
+          else
+            echo "cookies_file=" >> $GITHUB_OUTPUT
+            echo "No cookies provided, will try without authentication"
+          fi
+      
       - name: Download video
         id: download
         run: |
           URL="${{ github.event.client_payload.url }}"
           echo "Downloading: $URL"
           
+          # Build base command
+          BASE_CMD="yt-dlp \
+            -f 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best' \
+            --merge-output-format mp4 \
+            --output 'video.%(ext)s' \
+            --retries 3 \
+            --fragment-retries 3"
+          
+          # Add cookies if available
+          COOKIES_FILE="${{ steps.cookies.outputs.cookies_file }}"
+          if [ -n "$COOKIES_FILE" ] && [ -f "$COOKIES_FILE" ]; then
+            BASE_CMD="$BASE_CMD --cookies '$COOKIES_FILE'"
+            echo "Using cookies for authentication"
+          fi
+          
           # Try downloading with different strategies to bypass bot detection
           # Strategy 1: Use Android client (often works better)
-          if ! yt-dlp \
-            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-            --merge-output-format mp4 \
-            --output "video.%(ext)s" \
-            --extractor-args "youtube:player_client=android" \
-            --user-agent "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip" \
-            --retries 3 \
-            --fragment-retries 3 \
-            "$URL" 2>&1; then
+          ANDROID_CMD="$BASE_CMD \
+            --extractor-args 'youtube:player_client=android' \
+            --user-agent 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip'"
+          
+          if ! eval "$ANDROID_CMD \"$URL\"" 2>&1; then
             echo "Android client failed, trying web client..."
             # Strategy 2: Use web client with browser-like headers
-            yt-dlp \
-              -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
-              --merge-output-format mp4 \
-              --output "video.%(ext)s" \
-              --extractor-args "youtube:player_client=web" \
-              --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
-              --referer "https://www.youtube.com/" \
-              --retries 3 \
-              --fragment-retries 3 \
-              "$URL"
+            WEB_CMD="$BASE_CMD \
+              --extractor-args 'youtube:player_client=web' \
+              --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' \
+              --referer 'https://www.youtube.com/'"
+            
+            if ! eval "$WEB_CMD \"$URL\"" 2>&1; then
+              echo "Both strategies failed. If you're seeing bot detection errors, you need to add YouTube cookies."
+              echo "See README.md for instructions on how to export and add cookies as a GitHub secret."
+              exit 1
+            fi
           fi
           
           # Get the downloaded filename
@@ -58,6 +81,7 @@ jobs:
             exit 1
           fi
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "Successfully downloaded: $FILENAME"
       
       - name: Upload artifact
         uses: actions/upload-artifact@v4
