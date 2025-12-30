@@ -36,6 +36,7 @@ jobs:
           VITE_GITHUB_OWNER: ${{ secrets.VITE_GITHUB_OWNER || github.repository_owner }}
           VITE_GITHUB_REPO: ${{ secrets.VITE_GITHUB_REPO || github.event.repository.name }}
           VITE_GITHUB_TOKEN: ${{ secrets.VITE_GITHUB_TOKEN }}
+          VITE_BASE_PATH: /${{ secrets.VITE_GITHUB_REPO || github.event.repository.name }}/
         run: npm run build
       
       - name: Setup Pages
