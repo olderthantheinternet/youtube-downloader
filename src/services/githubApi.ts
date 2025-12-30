@@ -301,7 +301,9 @@ export async function pollForCompletion(
 ): Promise<{ blobUrl: string; fileName: string }> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const runs = await getWorkflowRuns();
-    const latestRun = runs[0];
+    // Filter to only "Download YouTube Video" workflow runs
+    const downloadRuns = runs.filter(run => run.name === 'Download YouTube Video');
+    const latestRun = downloadRuns[0];
 
     if (latestRun && latestRun.status === 'completed') {
       if (latestRun.conclusion === 'success') {
