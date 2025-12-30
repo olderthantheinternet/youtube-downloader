@@ -1,0 +1,55 @@
+name: Download YouTube Video
+
+on:
+  repository_dispatch:
+    types: [download_video]
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    
+    steps:
+      - name: Setup yt-dlp
+        uses: AnimMouse/setup-yt-dlp@v3
+        with:
+          ffmpeg: true
+
+      - name: Get YouTube URL
+        id: get_url
+        run: |
+          echo "url=${{ github.event.client_payload.url }}" >> $GITHUB_OUTPUT
+
+      - name: Download video
+        id: download
+        run: |
+          URL="${{ steps.get_url.outputs.url }}"
+          echo "Downloading video from: $URL"
+          
+          # Download with best video + best audio
+          yt-dlp -f "bv*+ba/b" \
+            -o "video.%(ext)s" \
+            --no-playlist \
+            "$URL"
+          
+          # Get the downloaded filename
+          FILENAME=$(ls -t video.* | head -1)
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "Downloaded: $FILENAME"
+
+      - name: Get video info
+        id: video_info
+        run: |
+          FILENAME="${{ steps.download.outputs.filename }}"
+          FILESIZE=$(stat -f%z "$FILENAME" 2>/dev/null || stat -c%s "$FILENAME" 2>/dev/null || echo "0")
+          echo "size=$FILESIZE" >> $GITHUB_OUTPUT
+          echo "File size: $FILESIZE bytes"
+
+      - name: Upload video artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-download
+          path: ${{ steps.download.outputs.filename }}
+          retention-days: 2
+
