@@ -198,6 +198,28 @@ youtube-downloader/
 - Verify Pages source is set to "GitHub Actions"
 - Check that the deploy workflow has completed successfully
 
+### YouTube Bot Detection Errors
+
+If you see errors like "Sign in to confirm you're not a bot", YouTube is blocking automated downloads. The workflow tries multiple strategies to bypass this:
+
+1. **Android client** - Uses YouTube's Android API (often more reliable)
+2. **Web client fallback** - Falls back to web client with browser-like headers
+
+**If downloads still fail, you can add YouTube cookies:**
+
+1. Export cookies from your browser:
+   - Install a browser extension like "Get cookies.txt LOCALLY" or "cookies.txt"
+   - Visit YouTube and log in
+   - Export cookies in Netscape format
+
+2. Add cookies as a GitHub secret:
+   - Go to repository → Settings → Secrets and variables → Actions
+   - Create a new secret named `YOUTUBE_COOKIES`
+   - Paste the entire contents of your cookies.txt file as the value
+   - The workflow will automatically use these cookies if the secret exists
+
+**Note**: Cookies expire periodically, so you may need to update them if downloads start failing again.
+
 ## License
 
 This project is open source and available under the MIT License.

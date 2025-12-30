@@ -26,14 +26,37 @@ jobs:
           URL="${{ github.event.client_payload.url }}"
           echo "Downloading: $URL"
           
-          # Download video with audio in best quality
-          yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+          # Try downloading with different strategies to bypass bot detection
+          # Strategy 1: Use Android client (often works better)
+          if ! yt-dlp \
+            -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
             --merge-output-format mp4 \
             --output "video.%(ext)s" \
-            "$URL"
+            --extractor-args "youtube:player_client=android" \
+            --user-agent "com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip" \
+            --retries 3 \
+            --fragment-retries 3 \
+            "$URL" 2>&1; then
+            echo "Android client failed, trying web client..."
+            # Strategy 2: Use web client with browser-like headers
+            yt-dlp \
+              -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+              --merge-output-format mp4 \
+              --output "video.%(ext)s" \
+              --extractor-args "youtube:player_client=web" \
+              --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" \
+              --referer "https://www.youtube.com/" \
+              --retries 3 \
+              --fragment-retries 3 \
+              "$URL"
+          fi
           
           # Get the downloaded filename
           FILENAME=$(ls -1 video.* | head -n 1)
+          if [ -z "$FILENAME" ]; then
+            echo "Error: No video file was downloaded"
+            exit 1
+          fi
           echo "filename=$FILENAME" >> $GITHUB_OUTPUT
       
       - name: Upload artifact
